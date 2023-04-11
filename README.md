@@ -80,3 +80,34 @@ constructor(executor){
     }
 ```
 
+## 4.then
+
+根据Promise语法，then函数会返回一个新的Promise，并且异步执行，放在微队列中。
+
+关于为队列问题，浏览器环境可以用MutationObserver解决，node环境可以用process解决，其他环境就用setTimeOut解决（实在没有办法了所以用宏队列来解决），可以封装一个函数来执行微队列行为
+
+MutationObserver语法：[MutationObserver - Web API 接口参考 | MDN (mozilla.org)](https://developer.mozilla.org/zh-CN/docs/Web/API/MutationObserver)
+
+```javascript
+function runMicroTask(cb){
+    if(process&&process.nextTick){
+        //node环境
+        process.nextTick(cb)
+    }else if(MutationObserver){
+        //浏览器环境
+        const p = document.createElement('p')
+        const observer = new MutationObserver(cb)
+        observer.observe(p,{
+            childList: true  // 观察目标子节点的变化，是否有添加或者删除
+        })
+        p.innerHTML = 1
+    }else{
+        setTimeout(() => {
+            cb
+        }, 0);
+    }
+}
+```
+
+
+

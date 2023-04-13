@@ -24,6 +24,7 @@ class MyPromise{
     constructor(executor){
         this._state = PENDDING
         this._value = undefined
+        this._queue = []
         try {
             executor(this._resolve.bind(this),this._reject.bind(this))
         } catch (error) {
@@ -37,7 +38,7 @@ class MyPromise{
         }
         this._state = newState
         this._value = newValue
-        console.log(this._state,this._value)
+        this._execQueue()
     }
 
     _resolve(data){
@@ -48,14 +49,45 @@ class MyPromise{
         this._changeState(REJECTED,reason)
     }
 
+    _changeQueue(func,state,resolve,reject){
+        this._queue.push({
+            executor: func,
+            state: state,
+            resolve,
+            reject
+        })
+       
+    }
+
+    _execQueue(){
+        if(this.state===PENDDING){
+            return
+        }
+        while(this._queue[0]){
+            this._execItem(this._queue[0])
+            this._queue.shift()
+        }
+
+    }
+
+    _execItem(item){
+
+    }
+
     then(onFulfill,onReject){
-        return new MyPromise((resolve,reject)=>{})
+        return new MyPromise((resolve,reject)=>{
+            this._changeQueue(onFulfill,FULFILLED,resolve,reject)
+            this._changeQueue(onReject,REJECTED,resolve,reject)
+            this._execQueue()
+        })
     }
 
     
 }
 
-// new MyPromise((resolve,reject)=>{
-//     throw 123
-// })
-runMicroTask(()=>console.log('123'))
+const promise = new MyPromise((resolve,reject)=>{
+    throw 123
+})
+promise.then(()=>{
+    console.log(123)
+})

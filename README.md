@@ -84,7 +84,7 @@ constructor(executor){
 
 根据Promise语法，then函数会返回一个新的Promise，并且异步执行，放在微队列中。
 
-关于为队列问题，浏览器环境可以用MutationObserver解决，node环境可以用process解决，其他环境就用setTimeOut解决（实在没有办法了所以用宏队列来解决），可以封装一个函数来执行微队列行为
+关于微队列问题，浏览器环境可以用MutationObserver解决，node环境可以用process解决，其他环境就用setTimeOut解决（实在没有办法了所以用宏队列来解决），可以封装一个函数来执行微队列行为
 
 MutationObserver语法：[MutationObserver - Web API 接口参考 | MDN (mozilla.org)](https://developer.mozilla.org/zh-CN/docs/Web/API/MutationObserver)
 
@@ -108,6 +108,73 @@ function runMicroTask(cb){
     }
 }
 ```
+
+then函数接收两个参数，分别为成功时调用的函数和失败时调用的函数。由于不是立即执行所以需要人为地创造一个队列用于记录添加的所有函数。这些函数并不是全部执行，要根据Promise的成功还是失败来判断执行哪些函数，所以这个队列应该存储状态。不仅如此，返回的新Promise也要根据执行的函数来判断是执行resolve还是reject，所以队列数组里还需要添加新Promise的resolve和reject。
+
+封装了一个方法来实现上述操作
+
+```javascript
+_changeQueue(func,state,resolve,reject){
+        this._queue.push({
+            executor: func,//要执行的函数
+            state: state,//执行函数需要的状态
+            resolve,//返回新的promise的resolve
+            reject//返回新的promise的reject
+        })
+    }
+```
+
+接下来只需要在then内部调用这个方法就可以了
+
+```javascript
+then(onFulfill,onReject){
+        return new MyPromise((resolve,reject)=>{
+            this._changeQueue(onFulfill,FULFILLED,resolve,reject)
+            this._changeQueue(onReject,REJECTED,resolve,reject)
+        })
+    }
+```
+
+现在输出queue数组可以得到类似如下数组
+
+```javascript
+[
+  {
+    executor: [Function (anonymous)],
+    state: 'fulfilled',
+    resolve: [Function: bound _resolve],
+    reject: [Function: bound _reject]
+  },
+  {
+    executor: undefined,
+    state: 'rejected',
+    resolve: [Function: bound _resolve],
+    reject: [Function: bound _reject]
+  }
+]
+```
+
+接下来就要考虑遍历执行这个数组，在执行前需要考虑何时执行，根据then的使用方法，得知在**状态变更**和**状态确立**的时候执行
+
+封装一个执行函数，当状态处于挂起时不进行遍历执行，每次执行后要对执行过的对象从队列中移除
+
+```javascript
+_execQueue(){
+        if(this.state===PENDDING){
+            //当状态处于挂起时不进行遍历执行
+            return
+        }
+        while(this._queue[0]){
+            //单独执行每一项的函数
+            this._execItem(this._queue[0])
+            //每次执行后要对执行过的对象从队列中移除
+            this._queue.shift()
+        }
+
+    }
+```
+
+
 
 
 

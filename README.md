@@ -174,6 +174,60 @@ _execQueue(){
     }
 ```
 
+接下来只需要完善_execItem这个函数就可以实现then函数了
+
+所有操作都需要在之前写的runMicroTask中完成
+
+有以下几种情况需要考虑
+
+1. 执行队列中与当前状态不匹配的，要直接跳出
+2. 执行队列中状态匹配但是传入的不是函数（或者没有对应的函数处理）这种情况根据PromiseA+规范，是要根据状态穿透来处理，即和当前promise状态保持一致
+3. 如果上述情况都没有，就执行函数，并根据执行后的返回值来判断执行resolve还是reject，这里采用三目运算符。如果返回的结果还是Promise，就让新的Promise来帮助执行resolve和reject。
+
+判断是否是Promise的条件：
+
+1. 它是个对象
+2. 它内部存在then函数
+
+```javascript
+//判断是否是promise
+function isPromise(obj) {
+    return !!(obj && typeof obj === 'object' && typeof obj.then === 'function')
+}
+```
+
+_execItem的具体实现
+
+```javascript
+_execItem({ executor, state, resolve, reject }) {
+        runMicroTask(() => {
+            if (this._state !== state) {
+                //状态不匹配的不执行
+                return
+            }
+            if (typeof executor !== 'function') {
+                //executor不是function 状态穿透
+                this._state === FULFILLED ?
+                    resolve(this._value) :
+                    reject(this._value)
+                return
+            }
+            try {
+                //传递参数最终结果
+                const result = executor(this._value)
+                if (isPromise(result)) {
+                    result.then(resolve, reject)
+                } else {
+                    resolve(result)
+                }
+
+            } catch (error) {
+                reject(this._value)
+            }
+        })
+    }
+```
+
 
 
 
